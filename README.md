@@ -1,5 +1,8 @@
 # vmseries-architectures
 
+> **FOR LAB AND DEMONSTRATION USE ONLY.**
+> This code is provided without warranty of any kind, express or implied. It is not validated for production use. No support is provided. Use at your own risk.
+
 A hands-on study of Palo Alto Networks VM-Series firewall deployment patterns across public cloud providers. Each cloud subdirectory contains Terraform that deploys real, working infrastructure — useful for learning PAN-OS HA mechanics, cloud routing primitives, and load balancer integration patterns.
 
 ## Firewall Management: SCM vs Panorama

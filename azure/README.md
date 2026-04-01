@@ -1,4 +1,7 @@
-# vmseries-architectures
+# vmseries-architectures — Azure
+
+> **FOR LAB AND DEMONSTRATION USE ONLY.**
+> This code is provided without warranty of any kind, express or implied. It is not validated for production use. No support is provided. Use at your own risk.
 
 Terraform deployment for Palo Alto Networks VM-Series firewalls in Azure, supporting three high-availability architectures in a hub-and-spoke topology.
 
