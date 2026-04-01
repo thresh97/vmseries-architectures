@@ -21,13 +21,7 @@ workload_vpc_count         = 2
 # --------------------------------------------------------------------------
 # VM-Series Firewall
 # --------------------------------------------------------------------------
-# Find available AMIs:
-#   aws ec2 describe-images --owners 679593333241 \
-#     --filters "Name=name,Values=PA-VM-AWS-11.2*" \
-#     --region us-east-1 \
-#     --query 'sort_by(Images, &CreationDate)[].[CreationDate,Name,ImageId]' \
-#     --output table
-vmseries_ami           = "ami-0000000000000000"
+panos_version          = "11.2.8"
 vmseries_instance_type = "m5.xlarge"
 
 # init-cfg parameters appended to all firewalls (newline-separated key=value)

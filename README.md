@@ -34,10 +34,10 @@ The Terraform in this repo uses Panorama as the management plane. The companion 
 
 ## Cloud Providers
 
-| Provider | Directory | HA Modes |
-|----------|-----------|----------|
+| Provider | Directory | Architectures |
+|----------|-----------|---------------|
 | Azure | [`azure/`](azure/) | PAN-OS A/P, LB HA, Standalone+ARS |
-| AWS | [`aws/`](aws/) | TGW Inspection VPC + GWLB |
+| AWS | [`aws/`](aws/) | GWLB one-arm (TGW inspection VPC), A/P HA single-AZ |
 | GCP | `gcp/` | Coming soon |
 | OCI | `oci/` | Coming soon |
 

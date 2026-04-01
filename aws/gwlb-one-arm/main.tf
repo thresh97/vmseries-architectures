@@ -18,6 +18,19 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_ami" "vmseries" {
+  most_recent = true
+  owners      = ["aws-marketplace"]
+  filter {
+    name   = "name"
+    values = ["PA-VM-AWS-${var.panos_version}*"]
+  }
+  filter {
+    name   = "product-code"
+    values = ["6njl1pau431dv1qxipg63mvah"] # VM-Series BYOL
+  }
+}
+
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -468,7 +481,7 @@ resource "aws_eip" "fw_mgmt" {
 
 resource "aws_instance" "vmseries" {
   for_each      = { for i, az in local.azs : az => i }
-  ami           = var.vmseries_ami
+  ami           = data.aws_ami.vmseries.id
   instance_type = var.vmseries_instance_type
   key_name      = var.key_name
 
@@ -599,9 +612,10 @@ variable "workload_vpc_count" {
   default     = 1
 }
 
-variable "vmseries_ami" {
-  description = "VM-Series BYOL AMI ID for the target region. See README for discovery command."
+variable "panos_version" {
+  description = "PAN-OS version to deploy, used to select the Marketplace BYOL AMI (e.g., \"11.2.8\")."
   type        = string
+  default     = "11.2.8"
 }
 
 variable "vmseries_instance_type" {
