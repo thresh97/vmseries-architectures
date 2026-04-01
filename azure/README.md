@@ -77,7 +77,7 @@ terraform init && terraform apply -var-file="my.tfvars"
 | `allowed_mgmt_cidrs` | — | CIDRs allowed to reach firewall management on ports 22/443 |
 | `private_panorama_vnet_id` | `null` | Resource ID from `panorama-create` `panorama_vnet_id` output |
 | `shared_user_data` | `""` | Bootstrap params applied to all firewalls (e.g., `authcodes`, `panorama-server`) |
-| `vnet_pairs` | `[]` | List of hub/spoke environments to deploy |
+| `vnet_pairs` | `[]` | List of hub/spoke environments to deploy. Each firewall has its own `bgp_asn` — assign matching ASNs for PAN-OS HA pairs (shared floating IP) and distinct ASNs for standalone/LB HA (independent BGP peers). |
 | `workload_vm_size` | `Standard_B2s` | VM size for workload test VMs |
 | `create_marketplace_agreement` | `false` | Accept marketplace terms (first deployment only) |
 

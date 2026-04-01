@@ -87,28 +87,30 @@ locals {
 
   floating_pip_keys = flatten([
     for idx, pair in var.vnet_pairs : [
-      for nic_type in (pair.enable_panos_ha ? ["untrust", "untrust2"] : (pair.enable_lb_ha ? ["untrust"] : [])) : {
+      for nic_type in ((pair.enable_panos_ha && pair.enable_vip) ? ["untrust", "untrust2"] : (pair.enable_lb_ha ? ["untrust"] : [])) : {
         key      = "${idx}-${nic_type}"
         vnet_idx = tostring(idx)
         nic_type = nic_type
       }
-    ] if pair.enable_panos_ha || pair.enable_lb_ha
+    ] if (pair.enable_panos_ha && pair.enable_vip) || pair.enable_lb_ha
   ])
 
   ars_bgp_peers = flatten([
     for idx, pair in var.vnet_pairs : (
       pair.enable_ars ? (
-        pair.enable_panos_ha ? [
+        pair.enable_vip ? [
           {
             peer_key = "vnet${idx}-floating"
             vnet_idx = tostring(idx)
             peer_ip  = cidrhost(cidrsubnet(pair.fw_vnet_cidr, 4, local.nic_subnet_offset["trust"]), 6)
+            bgp_asn  = values(pair.firewalls)[0].bgp_asn
           }
         ] : [
           for fw_key, fw_val in pair.firewalls : {
             peer_key = "vnet${idx}-${fw_key}"
             vnet_idx = tostring(idx)
             peer_ip  = cidrhost(cidrsubnet(pair.fw_vnet_cidr, 4, local.nic_subnet_offset["trust"]), fw_key == keys(pair.firewalls)[0] ? 4 : 5)
+            bgp_asn  = fw_val.bgp_asn
           }
         ]
       ) : []
@@ -355,7 +357,7 @@ resource "azurerm_route_server_bgp_connection" "fw_trust_peer" {
   for_each        = { for p in local.ars_bgp_peers : p.peer_key => p }
   name            = "${each.value.peer_key}-bgp"
   route_server_id = azurerm_route_server.ars[each.value.vnet_idx].id
-  peer_asn        = var.vnet_pairs[tonumber(each.value.vnet_idx)].firewall_bgp_asn
+  peer_asn        = each.value.bgp_asn
   peer_ip         = each.value.peer_ip
 }
 
@@ -485,7 +487,7 @@ resource "azurerm_network_interface" "nics" {
   }
 
   dynamic "ip_configuration" {
-    for_each = var.vnet_pairs[each.value.inst.vnet_idx].enable_panos_ha && each.value.inst.fw_key == keys(var.vnet_pairs[each.value.inst.vnet_idx].firewalls)[0] && contains(["trust", "untrust", "untrust2"], each.value.nic_type) ? [1] : []
+    for_each = var.vnet_pairs[each.value.inst.vnet_idx].enable_panos_ha && var.vnet_pairs[each.value.inst.vnet_idx].enable_vip && each.value.inst.fw_key == keys(var.vnet_pairs[each.value.inst.vnet_idx].firewalls)[0] && contains(["trust", "untrust", "untrust2"], each.value.nic_type) ? [1] : []
     content {
       name = "floating-vip"
       subnet_id = (
@@ -797,16 +799,23 @@ variable "vnet_pairs" {
     workload_vnet_cidr = string
     enable_ars         = bool
     enable_panos_ha    = bool
+    enable_vip         = bool
     enable_lb_ha       = bool
     enable_islb        = bool
-    firewall_bgp_asn   = number
     vm_size            = string
     firewalls = map(object({
       hostname  = string
       user_data = string
+      bgp_asn   = number
     }))
   }))
   default = []
+  validation {
+    condition = alltrue([
+      for p in var.vnet_pairs : p.enable_vip ? p.enable_panos_ha : true
+    ])
+    error_message = "enable_vip requires enable_panos_ha. A floating VIP has no owner without PAN-OS HA."
+  }
   validation {
     condition = alltrue([
       for p in var.vnet_pairs : !(p.enable_panos_ha && p.enable_lb_ha)
@@ -858,7 +867,7 @@ output "ars_peering_config" {
       peers = pair.enable_ars ? [
         for p in local.ars_bgp_peers : {
           peer_ip  = p.peer_ip
-          peer_asn = pair.firewall_bgp_asn
+          peer_asn = p.bgp_asn
         } if p.vnet_idx == tostring(vnet_idx)
       ] : []
     } if pair.enable_ars
