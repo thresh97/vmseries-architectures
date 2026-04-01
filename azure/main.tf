@@ -496,7 +496,7 @@ resource "azurerm_network_interface" "nics" {
     "${pair[0].pair_key}-${pair[1]}" => {
       inst     = pair[0]
       nic_type = pair[1]
-    } if (var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha || !contains(["ha1", "ha2"], pair[1])) && (var.vnet_pairs[pair[0].vnet_idx].enable_untrust2 || pair[1] != "untrust2") && (!var.vnet_pairs[pair[0].vnet_idx].enable_one_arm || contains(["mgmt", "trust"], pair[1]))
+    } if (pair[1] != "ha1" || (var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha && !var.vnet_pairs[pair[0].vnet_idx].ha1_use_mgmt)) && (pair[1] != "ha2" || var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha) && (var.vnet_pairs[pair[0].vnet_idx].enable_untrust2 || pair[1] != "untrust2") && (!var.vnet_pairs[pair[0].vnet_idx].enable_one_arm || contains(["mgmt", "trust"], pair[1]))
   }
 
   name                           = "${local.full_prefix}-${each.value.inst.pair_key}-${each.value.nic_type}-nic"
@@ -560,7 +560,7 @@ resource "azurerm_linux_virtual_machine" "vmseries" {
 
   network_interface_ids = compact([
     azurerm_network_interface.nics["${each.key}-mgmt"].id,
-    var.vnet_pairs[each.value.vnet_idx].enable_panos_ha ? azurerm_network_interface.nics["${each.key}-ha1"].id : "",
+    (var.vnet_pairs[each.value.vnet_idx].enable_panos_ha && !var.vnet_pairs[each.value.vnet_idx].ha1_use_mgmt) ? azurerm_network_interface.nics["${each.key}-ha1"].id : "",
     var.vnet_pairs[each.value.vnet_idx].enable_panos_ha ? azurerm_network_interface.nics["${each.key}-ha2"].id : "",
     !var.vnet_pairs[each.value.vnet_idx].enable_one_arm ? azurerm_network_interface.nics["${each.key}-untrust"].id : "",
     azurerm_network_interface.nics["${each.key}-trust"].id,
@@ -842,6 +842,7 @@ variable "vnet_pairs" {
     workload_vnet_cidr = string
     enable_ars         = bool
     enable_panos_ha    = bool
+    ha1_use_mgmt       = bool
     enable_vip         = bool
     enable_lb_ha       = bool
     enable_islb        = bool
@@ -856,6 +857,12 @@ variable "vnet_pairs" {
     }))
   }))
   default = []
+  validation {
+    condition = alltrue([
+      for p in var.vnet_pairs : p.ha1_use_mgmt ? p.enable_panos_ha : true
+    ])
+    error_message = "ha1_use_mgmt requires enable_panos_ha."
+  }
   validation {
     condition = alltrue([
       for p in var.vnet_pairs : p.enable_vip ? p.enable_panos_ha : true
