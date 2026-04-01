@@ -34,6 +34,7 @@ vnet_pairs = [
     enable_islb        = false # Must be false when enable_vip=true (floating VIP and ISLB both claim .6)
     enable_untrust2    = true
     enable_nat_gateway = false
+    enable_one_arm     = false
     vm_size            = "Standard_D16s_v5" # Required for 6 NICs
     firewalls = {
       fw1 = {
@@ -61,6 +62,7 @@ vnet_pairs = [
     enable_islb        = true  # Completes the LB sandwich
     enable_untrust2    = true
     enable_nat_gateway = false
+    enable_one_arm     = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -88,6 +90,7 @@ vnet_pairs = [
     enable_islb        = true
     enable_untrust2    = true
     enable_nat_gateway = false
+    enable_one_arm     = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -116,6 +119,7 @@ vnet_pairs = [
     enable_islb        = true  # Workload UDR next-hop is ISLB frontend (.6 on trust subnet)
     enable_untrust2    = false # OBEW uses only mgmt, untrust, trust
     enable_nat_gateway = false
+    enable_one_arm     = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -146,6 +150,7 @@ vnet_pairs = [
     enable_islb        = true  # ISLB on trust for east-west and outbound next-hop
     enable_untrust2    = false
     enable_nat_gateway = true  # NAT-GW on untrust subnet for outbound SNAT; suppresses ELB outbound rule
+    enable_one_arm     = false
     vm_size            = "Standard_D8s_v5" # 4 NICs: mgmt, ha1, ha2, untrust, trust
     firewalls = {
       fw1 = {
@@ -157,6 +162,36 @@ vnet_pairs = [
         hostname  = "natgw-fw-passive"
         user_data = "hostname=natgw-fw-passive\nvm-auth-key=0123456"
         bgp_asn   = 65007
+      }
+    }
+  },
+  {
+    # Pair 5 — One-Arm Dataplane
+    # Single dataplane NIC (trust only). No untrust NIC, no HA NICs.
+    # ISLB on trust subnet as inbound/east-west next-hop.
+    # NAT-GW on trust subnet for outbound SNAT.
+    # Workload UDR next-hop is ISLB frontend (.6 on trust subnet).
+    fw_vnet_cidr       = "10.10.0.0/24"
+    workload_vnet_cidr = "10.11.0.0/24"
+    enable_ars         = false
+    enable_panos_ha    = false
+    enable_vip         = false
+    enable_lb_ha       = false
+    enable_islb        = true  # Required; ISLB frontend (.6) is next-hop for all workload traffic
+    enable_untrust2    = false
+    enable_nat_gateway = true  # Required; NAT-GW attaches to trust subnet (not untrust) in one-arm mode
+    enable_one_arm     = true  # 2 NICs only: mgmt + trust
+    vm_size            = "Standard_D4s_v5"
+    firewalls = {
+      fw1 = {
+        hostname  = "onearm-fw-1"
+        user_data = "hostname=onearm-fw-1\nvm-auth-key=0123456"
+        bgp_asn   = 65008
+      }
+      fw2 = {
+        hostname  = "onearm-fw-2"
+        user_data = "hostname=onearm-fw-2\nvm-auth-key=0123456"
+        bgp_asn   = 65009
       }
     }
   }

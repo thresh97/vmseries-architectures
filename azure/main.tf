@@ -393,8 +393,14 @@ resource "azurerm_nat_gateway_public_ip_association" "nat_gw_pip" {
 }
 
 resource "azurerm_subnet_nat_gateway_association" "untrust" {
-  for_each       = local.nat_gw_enabled_vnets
+  for_each       = { for k, v in local.nat_gw_enabled_vnets : k => v if !v.enable_one_arm }
   subnet_id      = azurerm_subnet.untrust[tonumber(each.key)].id
+  nat_gateway_id = azurerm_nat_gateway.nat_gw[each.key].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "trust_one_arm" {
+  for_each       = { for k, v in local.nat_gw_enabled_vnets : k => v if v.enable_one_arm }
+  subnet_id      = azurerm_subnet.trust[tonumber(each.key)].id
   nat_gateway_id = azurerm_nat_gateway.nat_gw[each.key].id
 }
 
@@ -475,7 +481,7 @@ resource "azurerm_public_ip" "fw_pip" {
     "${pair[0].pair_key}-${pair[1]}" => {
       inst     = pair[0]
       nic_type = pair[1]
-    } if pair[1] == "mgmt" || (contains(["untrust", "untrust2"], pair[1]) && !var.vnet_pairs[pair[0].vnet_idx].enable_lb_ha && (pair[1] != "untrust2" || var.vnet_pairs[pair[0].vnet_idx].enable_untrust2))
+    } if pair[1] == "mgmt" || (contains(["untrust", "untrust2"], pair[1]) && !var.vnet_pairs[pair[0].vnet_idx].enable_lb_ha && !var.vnet_pairs[pair[0].vnet_idx].enable_one_arm && (pair[1] != "untrust2" || var.vnet_pairs[pair[0].vnet_idx].enable_untrust2))
   }
   name                = "${local.full_prefix}-${each.value.inst.pair_key}-${each.value.nic_type}-pip"
   location            = azurerm_resource_group.pair[tonumber(each.value.inst.vnet_idx)].location
@@ -490,7 +496,7 @@ resource "azurerm_network_interface" "nics" {
     "${pair[0].pair_key}-${pair[1]}" => {
       inst     = pair[0]
       nic_type = pair[1]
-    } if (var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha || !contains(["ha1", "ha2"], pair[1])) && (var.vnet_pairs[pair[0].vnet_idx].enable_untrust2 || pair[1] != "untrust2")
+    } if (var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha || !contains(["ha1", "ha2"], pair[1])) && (var.vnet_pairs[pair[0].vnet_idx].enable_untrust2 || pair[1] != "untrust2") && (!var.vnet_pairs[pair[0].vnet_idx].enable_one_arm || contains(["mgmt", "trust"], pair[1]))
   }
 
   name                           = "${local.full_prefix}-${each.value.inst.pair_key}-${each.value.nic_type}-nic"
@@ -518,7 +524,7 @@ resource "azurerm_network_interface" "nics" {
     )
 
     public_ip_address_id = (
-      each.value.nic_type == "mgmt" || (contains(["untrust", "untrust2"], each.value.nic_type) && !var.vnet_pairs[each.value.inst.vnet_idx].enable_lb_ha)
+      each.value.nic_type == "mgmt" || (contains(["untrust", "untrust2"], each.value.nic_type) && !var.vnet_pairs[each.value.inst.vnet_idx].enable_lb_ha && !var.vnet_pairs[each.value.inst.vnet_idx].enable_one_arm)
     ) ? azurerm_public_ip.fw_pip[each.key].id : null
     primary = true
   }
@@ -556,7 +562,7 @@ resource "azurerm_linux_virtual_machine" "vmseries" {
     azurerm_network_interface.nics["${each.key}-mgmt"].id,
     var.vnet_pairs[each.value.vnet_idx].enable_panos_ha ? azurerm_network_interface.nics["${each.key}-ha1"].id : "",
     var.vnet_pairs[each.value.vnet_idx].enable_panos_ha ? azurerm_network_interface.nics["${each.key}-ha2"].id : "",
-    azurerm_network_interface.nics["${each.key}-untrust"].id,
+    !var.vnet_pairs[each.value.vnet_idx].enable_one_arm ? azurerm_network_interface.nics["${each.key}-untrust"].id : "",
     azurerm_network_interface.nics["${each.key}-trust"].id,
     var.vnet_pairs[each.value.vnet_idx].enable_untrust2 ? azurerm_network_interface.nics["${each.key}-untrust2"].id : ""
   ])
@@ -841,6 +847,7 @@ variable "vnet_pairs" {
     enable_islb        = bool
     enable_untrust2    = bool
     enable_nat_gateway = bool
+    enable_one_arm     = bool
     vm_size            = string
     firewalls = map(object({
       hostname  = string
@@ -878,6 +885,18 @@ variable "vnet_pairs" {
       for p in var.vnet_pairs : (p.enable_lb_ha && !p.enable_ars) ? p.enable_islb : true
     ])
     error_message = "enable_islb must be true if lb_ha is true and enable_ars is false."
+  }
+  validation {
+    condition = alltrue([
+      for p in var.vnet_pairs : p.enable_one_arm ? (p.enable_islb && p.enable_nat_gateway) : true
+    ])
+    error_message = "enable_one_arm requires enable_islb and enable_nat_gateway."
+  }
+  validation {
+    condition = alltrue([
+      for p in var.vnet_pairs : p.enable_one_arm ? !(p.enable_panos_ha || p.enable_lb_ha || p.enable_vip || p.enable_ars || p.enable_untrust2) : true
+    ])
+    error_message = "enable_one_arm is incompatible with enable_panos_ha, enable_lb_ha, enable_vip, enable_ars, and enable_untrust2."
   }
 }
 
