@@ -25,14 +25,17 @@ Each entry in `vnet_pairs` creates:
 - Hub-to-Panorama peering (when `private_panorama_vnet_id` is set)
 
 ### NIC Layout (per firewall)
-```
-NIC 1: Management  (.4=fw1, .5=fw2)
-NIC 2: HA1         (PAN-OS HA only)
-NIC 3: HA2         (PAN-OS HA only)
-NIC 4: Untrust     (.4=fw1, .5=fw2)
-NIC 5: Trust       (.4=fw1, .5=fw2) — BGP endpoint
-NIC 6: Untrust2    (.4=fw1, .5=fw2)
-```
+
+NIC presence is driven by flags. Slot order is fixed — absent NICs are skipped and remaining NICs shift up.
+
+| Slot | Interface | IP | Present when | Notes |
+|------|-----------|----|--------------|-------|
+| 1 | Management | `.4`=fw1, `.5`=fw2 | always | Public IP always attached |
+| 2 | HA1 | `.4`=fw1, `.5`=fw2 | `enable_panos_ha=true` | PAN-OS HA heartbeat |
+| 3 | HA2 | `.4`=fw1, `.5`=fw2 | `enable_panos_ha=true` | PAN-OS HA bulk sync |
+| 4 | Untrust | `.4`=fw1, `.5`=fw2 | always | Public IP per FW, or no PIP when `enable_lb_ha=true` (ELB provides shared PIP) |
+| 5 | Trust | `.4`=fw1, `.5`=fw2 | always | IP forwarding enabled. Floating VIP `.6` added when `enable_vip=true`. ISLB frontend at `.6` when `enable_islb=true`. BGP endpoint for ARS. |
+| 6 | Untrust2 | `.4`=fw1, `.5`=fw2 | `enable_untrust2=true` | Second untrust for dual-ISP or zoning. Floating VIP `.6` added when `enable_vip=true`. |
 
 ## Usage
 
