@@ -90,6 +90,42 @@ terraform init && terraform apply -var-file="my.tfvars"
 | `workload_vm_size` | `Standard_B2s` | VM size for workload test VMs |
 | `create_marketplace_agreement` | `false` | Accept marketplace terms (first deployment only) |
 
+## Planned: vWAN Hub Attachment
+
+> Not yet implemented. This section captures the design intent.
+
+The current architectures use a hub VNET with Azure Route Server (ARS) for dynamic routing. vWAN introduces a fundamentally different routing plane that requires several architectural changes.
+
+### Key Constraints
+
+**ARS is incompatible with vWAN-connected VNETs.** A VNET connected to a vWAN hub cannot also contain an ARS instance — the two routing control planes conflict. Any pair using `enable_ars=true` cannot be directly connected to a vWAN hub.
+
+**Workload VNETs must also connect to the vWAN hub.** In the current topology, workload spokes peer directly to the firewall hub VNET. In a vWAN model, both the firewall VNET and the workload VNETs connect to the vWAN hub as spoke connections — the hub VNET-to-spoke VNET peering is replaced by vWAN hub routing.
+
+### Routing Options
+
+Without ARS, two mechanisms are available to steer workload traffic through the firewalls:
+
+| Mechanism | How it works | Trade-offs |
+|-----------|-------------|------------|
+| **Static route on vWAN hub** | A static route in the vWAN hub's route table points `0.0.0.0/0` (or specific prefixes) to the ISLB frontend IP in the firewall VNET | Simple; no BGP required on firewall. Requires ISLB (`enable_islb=true`). |
+| **BGP peering with vWAN hub** | Firewall trust interface peers via BGP directly with the vWAN hub (NVA BGP peering). Firewall advertises a default or specific routes; vWAN hub programs these into connected spoke VNETs automatically | Dynamic; firewall controls routing. Requires BGP configuration on vWAN hub and firewall. ISLB still recommended as the BGP next-hop so vWAN sees a stable IP. |
+
+### Planned Variables
+
+```hcl
+enable_vwan        = bool   # Attach hub VNET and workload VNET to a vWAN hub; disables ARS
+vwan_hub_id        = string # Resource ID of the target vWAN hub
+vwan_routing_intent = string # "static" or "bgp"
+```
+
+### Design Notes
+
+- `enable_ars` must be `false` when `enable_vwan=true` — a validation will enforce this
+- Workload spoke-to-hub VNET peering is replaced by separate vWAN spoke connections; the `workload_vnet_cidr` VNET connects directly to the vWAN hub rather than peering to `fw_hub`
+- BGP peering mode: the firewall trust IP (or ISLB frontend `.6`) becomes the NVA BGP peer registered on the vWAN hub; firewall advertises spoke prefixes or a default route back toward the hub
+- Static route mode: a vWAN hub route table entry points to the ISLB frontend; simpler but requires manual updates when spoke CIDRs change
+
 ## Discover Available VM-Series Versions
 
 ```bash
