@@ -12,9 +12,10 @@ This is **Phase 2** of a two-phase deployment workflow. Deploy [panorama-create]
 | Mode | Key Flags | NICs | Notes |
 |------|-----------|------|-------|
 | Native PAN-OS A/P HA | `enable_panos_ha=true` `enable_vip=true` | 6 | Floating VIPs on trust/untrust/untrust2 moved via Azure API. ARS peers with single floating trust IP. Requires ≥6 NIC VM (e.g., `Standard_D16s_v5`). |
-| Load Balancer HA | `enable_lb_ha=true` `enable_islb=true` | 4 | ELB on untrust (shared floating PIP) + ISLB on trust. HA Ports rules on both LBs. |
+| Load Balancer HA | `enable_lb_ha=true` `enable_islb=true` | 4 | ELB on untrust (shared floating PIP) + ISLB on trust. ELB outbound rule handles SNAT. |
 | Standalone + ARS | `enable_ars=true` | 4 | Independent FWs, per-FW BGP peers to ARS. ECMP routing. Unique ASN per FW. Models SD-WAN independent hub deployment. |
 | OBEW (dedicated model) | `enable_islb=true` `enable_untrust2=false` | 3 | Outbound + east-west from dedicated model reference architecture. Independent FWs, individual public IP per FW on untrust, ISLB on trust. Workload UDR next-hop is ISLB frontend. |
+| NAT-GW + ELB inbound | `enable_lb_ha=true` `enable_islb=true` `enable_nat_gateway=true` `enable_untrust2=false` | 3 or 5 | No public IPs on FW untrust NICs. NAT-GW handles outbound SNAT (ELB outbound rule suppressed). ELB provides shared inbound PIP. Works with independent FWs or PAN-OS HA — passive FW dead dataplane naturally fails ELB health probes, no Azure API required for failover. |
 
 ## Architecture
 
@@ -33,7 +34,7 @@ NIC presence is driven by flags. Slot order is fixed — absent NICs are skipped
 | 1 | Management | `.4`=fw1, `.5`=fw2 | always | Public IP always attached |
 | 2 | HA1 | `.4`=fw1, `.5`=fw2 | `enable_panos_ha=true` | PAN-OS HA heartbeat |
 | 3 | HA2 | `.4`=fw1, `.5`=fw2 | `enable_panos_ha=true` | PAN-OS HA bulk sync |
-| 4 | Untrust | `.4`=fw1, `.5`=fw2 | always | Public IP per FW, or no PIP when `enable_lb_ha=true` (ELB provides shared PIP) |
+| 4 | Untrust | `.4`=fw1, `.5`=fw2 | always | Public IP per FW, or no PIP when `enable_lb_ha=true` (ELB provides shared PIP). When `enable_nat_gateway=true`, NAT-GW on untrust subnet handles outbound SNAT — no per-FW or ELB outbound PIPs needed. |
 | 5 | Trust | `.4`=fw1, `.5`=fw2 | always | IP forwarding enabled. Floating VIP `.6` added when `enable_vip=true`. ISLB frontend at `.6` when `enable_islb=true`. BGP endpoint for ARS. |
 | 6 | Untrust2 | `.4`=fw1, `.5`=fw2 | `enable_untrust2=true` | Second untrust for dual-ISP or zoning. Floating VIP `.6` added when `enable_vip=true`. |
 

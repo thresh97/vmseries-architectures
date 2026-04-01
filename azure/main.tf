@@ -85,6 +85,10 @@ locals {
     for idx, pair in var.vnet_pairs : tostring(idx) => pair if pair.enable_islb
   }
 
+  nat_gw_enabled_vnets = {
+    for idx, pair in var.vnet_pairs : tostring(idx) => pair if pair.enable_nat_gateway
+  }
+
   floating_pip_keys = flatten([
     for idx, pair in var.vnet_pairs : [
       for nic_type in ((pair.enable_panos_ha && pair.enable_vip) ? ["untrust", "untrust2"] : (pair.enable_lb_ha ? ["untrust"] : [])) : {
@@ -362,7 +366,40 @@ resource "azurerm_route_server_bgp_connection" "fw_trust_peer" {
 }
 
 # --------------------------------------------------------------------------
-# 6. SECURITY GROUPS
+# 6. NAT GATEWAYS
+# --------------------------------------------------------------------------
+resource "azurerm_public_ip" "nat_gw_pip" {
+  for_each            = local.nat_gw_enabled_vnets
+  name                = "${local.full_prefix}-natgw-${each.key}-pip"
+  location            = azurerm_resource_group.pair[tonumber(each.key)].location
+  resource_group_name = azurerm_resource_group.pair[tonumber(each.key)].name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  zones               = ["1", "2", "3"]
+}
+
+resource "azurerm_nat_gateway" "nat_gw" {
+  for_each            = local.nat_gw_enabled_vnets
+  name                = "${local.full_prefix}-natgw-${each.key}"
+  location            = azurerm_resource_group.pair[tonumber(each.key)].location
+  resource_group_name = azurerm_resource_group.pair[tonumber(each.key)].name
+  sku_name            = "Standard"
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "nat_gw_pip" {
+  for_each             = local.nat_gw_enabled_vnets
+  nat_gateway_id       = azurerm_nat_gateway.nat_gw[each.key].id
+  public_ip_address_id = azurerm_public_ip.nat_gw_pip[each.key].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "untrust" {
+  for_each       = local.nat_gw_enabled_vnets
+  subnet_id      = azurerm_subnet.untrust[tonumber(each.key)].id
+  nat_gateway_id = azurerm_nat_gateway.nat_gw[each.key].id
+}
+
+# --------------------------------------------------------------------------
+# 7. SECURITY GROUPS
 # --------------------------------------------------------------------------
 resource "azurerm_network_security_group" "mgmt" {
   count               = length(var.vnet_pairs)
@@ -421,7 +458,7 @@ resource "azurerm_subnet_network_security_group_association" "untrust2" {
 }
 
 # --------------------------------------------------------------------------
-# 7. VIRTUAL MACHINES - VM-SERIES
+# 8. VIRTUAL MACHINES - VM-SERIES
 # --------------------------------------------------------------------------
 resource "azurerm_public_ip" "floating_pip" {
   for_each            = { for p in local.floating_pip_keys : p.key => p }
@@ -557,7 +594,7 @@ resource "azurerm_linux_virtual_machine" "vmseries" {
 }
 
 # --------------------------------------------------------------------------
-# 8. LOAD BALANCERS (HA)
+# 9. LOAD BALANCERS (HA)
 # --------------------------------------------------------------------------
 resource "azurerm_lb" "trust_ilb" {
   for_each            = local.islb_enabled_vnets
@@ -657,7 +694,7 @@ resource "azurerm_lb_rule" "untrust_elb_inbound_udp_4500" {
 }
 
 resource "azurerm_lb_outbound_rule" "untrust_elb_outbound" {
-  for_each                 = local.lb_enabled_vnets
+  for_each                 = { for k, v in local.lb_enabled_vnets : k => v if !v.enable_nat_gateway }
   name                     = "outbound-rule"
   loadbalancer_id          = azurerm_lb.untrust_elb[each.key].id
   protocol                 = "All"
@@ -677,7 +714,7 @@ resource "azurerm_network_interface_backend_address_pool_association" "lb_associ
 }
 
 # --------------------------------------------------------------------------
-# 9. WORKLOAD VMS
+# 10. WORKLOAD VMS
 # --------------------------------------------------------------------------
 resource "azurerm_public_ip" "workload_pip" {
   count               = length(var.vnet_pairs)
@@ -742,7 +779,7 @@ resource "azurerm_linux_virtual_machine" "workload" {
 }
 
 # --------------------------------------------------------------------------
-# 10. VARIABLES
+# 11. VARIABLES
 # --------------------------------------------------------------------------
 variable "subscription_id" {
   type = string
@@ -803,6 +840,7 @@ variable "vnet_pairs" {
     enable_lb_ha       = bool
     enable_islb        = bool
     enable_untrust2    = bool
+    enable_nat_gateway = bool
     vm_size            = string
     firewalls = map(object({
       hostname  = string
@@ -819,15 +857,15 @@ variable "vnet_pairs" {
   }
   validation {
     condition = alltrue([
-      for p in var.vnet_pairs : !(p.enable_panos_ha && p.enable_lb_ha)
+      for p in var.vnet_pairs : !(p.enable_panos_ha && p.enable_lb_ha && p.enable_vip)
     ])
-    error_message = "enable_panos_ha and enable_lb_ha are mutually exclusive. They cannot both be true for the same VNET pair."
+    error_message = "enable_panos_ha, enable_lb_ha, and enable_vip cannot all be true — enable_vip (Azure API VIP failover) and enable_lb_ha (ELB health-probe failover) are competing mechanisms."
   }
   validation {
     condition = alltrue([
-      for p in var.vnet_pairs : !(p.enable_panos_ha && p.enable_islb)
+      for p in var.vnet_pairs : !(p.enable_panos_ha && p.enable_islb && p.enable_vip)
     ])
-    error_message = "enable_panos_ha and enable_islb are mutually exclusive."
+    error_message = "enable_panos_ha, enable_islb, and enable_vip cannot all be true — the floating trust VIP and the ISLB frontend both claim .6 on the trust subnet."
   }
   validation {
     condition = alltrue([
@@ -844,7 +882,7 @@ variable "vnet_pairs" {
 }
 
 # --------------------------------------------------------------------------
-# 11. OUTPUTS
+# 12. OUTPUTS
 # --------------------------------------------------------------------------
 output "environment_info" {
   value = {

@@ -31,8 +31,9 @@ vnet_pairs = [
     enable_panos_ha    = true
     enable_vip         = true  # Floating IPs on trust/untrust/untrust2; ARS peers with floating trust IP
     enable_lb_ha       = false
-    enable_islb        = false # Must be false when panos_ha is true
+    enable_islb        = false # Must be false when enable_vip=true (floating VIP and ISLB both claim .6)
     enable_untrust2    = true
+    enable_nat_gateway = false
     vm_size            = "Standard_D16s_v5" # Required for 6 NICs
     firewalls = {
       fw1 = {
@@ -49,7 +50,8 @@ vnet_pairs = [
   },
   {
     # Pair 1 — Cloud-Native Load Balancer HA (LB sandwich)
-    # ELB on untrust (shared floating PIP), ISLB on trust. Each FW peers independently to ARS.
+    # ELB on untrust (shared floating PIP) + ISLB on trust. ELB outbound rule handles SNAT.
+    # Each FW peers independently to ARS.
     fw_vnet_cidr       = "10.2.0.0/24"
     workload_vnet_cidr = "10.3.0.0/24"
     enable_ars         = true
@@ -58,6 +60,7 @@ vnet_pairs = [
     enable_lb_ha       = true
     enable_islb        = true  # Completes the LB sandwich
     enable_untrust2    = true
+    enable_nat_gateway = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -84,6 +87,7 @@ vnet_pairs = [
     enable_lb_ha       = false
     enable_islb        = true
     enable_untrust2    = true
+    enable_nat_gateway = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -111,6 +115,7 @@ vnet_pairs = [
     enable_lb_ha       = false
     enable_islb        = true  # Workload UDR next-hop is ISLB frontend (.6 on trust subnet)
     enable_untrust2    = false # OBEW uses only mgmt, untrust, trust
+    enable_nat_gateway = false
     vm_size            = "Standard_D8s_v5"
     firewalls = {
       fw1 = {
@@ -122,6 +127,36 @@ vnet_pairs = [
         hostname  = "obew-fw-2"
         user_data = "hostname=obew-fw-2\nvm-auth-key=0123456"
         bgp_asn   = 65006
+      }
+    }
+  },
+  {
+    # Pair 4 — NAT Gateway + ELB inbound + ISLB
+    # No public IPs on individual FW untrust NICs.
+    # NAT-GW on untrust subnet handles outbound SNAT — ELB outbound rule is suppressed.
+    # ELB provides a shared inbound floating PIP; health probes resolve to the active FW.
+    # Works for independent FWs or PAN-OS HA (passive FW dead dataplane fails health probes
+    # naturally, no Azure API required for failover).
+    fw_vnet_cidr       = "10.8.0.0/24"
+    workload_vnet_cidr = "10.9.0.0/24"
+    enable_ars         = false
+    enable_panos_ha    = true  # HA1/HA2 for config sync; dead dataplane on passive drives ELB failover
+    enable_vip         = false # No floating VIPs — ELB + ISLB handle data plane
+    enable_lb_ha       = true  # ELB provides shared inbound PIP; both FW untrust NICs in backend pool
+    enable_islb        = true  # ISLB on trust for east-west and outbound next-hop
+    enable_untrust2    = false
+    enable_nat_gateway = true  # NAT-GW on untrust subnet for outbound SNAT; suppresses ELB outbound rule
+    vm_size            = "Standard_D8s_v5" # 4 NICs: mgmt, ha1, ha2, untrust, trust
+    firewalls = {
+      fw1 = {
+        hostname  = "natgw-fw-active"
+        user_data = "hostname=natgw-fw-active\nvm-auth-key=0123456"
+        bgp_asn   = 65007
+      }
+      fw2 = {
+        hostname  = "natgw-fw-passive"
+        user_data = "hostname=natgw-fw-passive\nvm-auth-key=0123456"
+        bgp_asn   = 65007
       }
     }
   }
