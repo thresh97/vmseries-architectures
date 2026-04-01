@@ -415,9 +415,9 @@ resource "azurerm_subnet_network_security_group_association" "untrust" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "untrust2" {
-  count                     = length(var.vnet_pairs)
-  subnet_id                 = azurerm_subnet.untrust2[count.index].id
-  network_security_group_id = azurerm_network_security_group.untrust[count.index].id
+  for_each                  = { for idx, pair in var.vnet_pairs : tostring(idx) => pair if pair.enable_untrust2 }
+  subnet_id                 = azurerm_subnet.untrust2[tonumber(each.key)].id
+  network_security_group_id = azurerm_network_security_group.untrust[tonumber(each.key)].id
 }
 
 # --------------------------------------------------------------------------
@@ -438,7 +438,7 @@ resource "azurerm_public_ip" "fw_pip" {
     "${pair[0].pair_key}-${pair[1]}" => {
       inst     = pair[0]
       nic_type = pair[1]
-    } if pair[1] == "mgmt" || (contains(["untrust", "untrust2"], pair[1]) && !var.vnet_pairs[pair[0].vnet_idx].enable_lb_ha)
+    } if pair[1] == "mgmt" || (contains(["untrust", "untrust2"], pair[1]) && !var.vnet_pairs[pair[0].vnet_idx].enable_lb_ha && (pair[1] != "untrust2" || var.vnet_pairs[pair[0].vnet_idx].enable_untrust2))
   }
   name                = "${local.full_prefix}-${each.value.inst.pair_key}-${each.value.nic_type}-pip"
   location            = azurerm_resource_group.pair[tonumber(each.value.inst.vnet_idx)].location
@@ -453,7 +453,7 @@ resource "azurerm_network_interface" "nics" {
     "${pair[0].pair_key}-${pair[1]}" => {
       inst     = pair[0]
       nic_type = pair[1]
-    } if var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha || !contains(["ha1", "ha2"], pair[1])
+    } if (var.vnet_pairs[pair[0].vnet_idx].enable_panos_ha || !contains(["ha1", "ha2"], pair[1])) && (var.vnet_pairs[pair[0].vnet_idx].enable_untrust2 || pair[1] != "untrust2")
   }
 
   name                           = "${local.full_prefix}-${each.value.inst.pair_key}-${each.value.nic_type}-nic"
@@ -521,7 +521,7 @@ resource "azurerm_linux_virtual_machine" "vmseries" {
     var.vnet_pairs[each.value.vnet_idx].enable_panos_ha ? azurerm_network_interface.nics["${each.key}-ha2"].id : "",
     azurerm_network_interface.nics["${each.key}-untrust"].id,
     azurerm_network_interface.nics["${each.key}-trust"].id,
-    azurerm_network_interface.nics["${each.key}-untrust2"].id
+    var.vnet_pairs[each.value.vnet_idx].enable_untrust2 ? azurerm_network_interface.nics["${each.key}-untrust2"].id : ""
   ])
 
   admin_ssh_key {
@@ -802,6 +802,7 @@ variable "vnet_pairs" {
     enable_vip         = bool
     enable_lb_ha       = bool
     enable_islb        = bool
+    enable_untrust2    = bool
     vm_size            = string
     firewalls = map(object({
       hostname  = string

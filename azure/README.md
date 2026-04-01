@@ -7,13 +7,14 @@ Terraform deployment for Palo Alto Networks VM-Series firewalls in Azure, suppor
 
 This is **Phase 2** of a two-phase deployment workflow. Deploy [panorama-create](https://github.com/mharms/panorama-create) first, then set `private_panorama_vnet_id` here to peer the firewall VNETs to Panorama.
 
-## HA Architectures
+## Architectures
 
-| Mode | Flag | NIC Count | Notes |
-|------|------|-----------|-------|
-| Native PAN-OS A/P | `enable_panos_ha=true` | 6 | Requires `vm_size` with ≥6 NICs (e.g., `Standard_D16s_v5`). Dedicated HA1/HA2 NICs. |
-| Load Balancer HA | `enable_lb_ha=true` + `enable_islb=true` | 4 | ELB (untrust) + ISLB (trust) with HA Ports |
-| Standalone + ARS | neither | 4 | ECMP via Azure Route Server; source NAT required |
+| Mode | Key Flags | NICs | Notes |
+|------|-----------|------|-------|
+| Native PAN-OS A/P HA | `enable_panos_ha=true` `enable_vip=true` | 6 | Floating VIPs on trust/untrust/untrust2 moved via Azure API. ARS peers with single floating trust IP. Requires ≥6 NIC VM (e.g., `Standard_D16s_v5`). |
+| Load Balancer HA | `enable_lb_ha=true` `enable_islb=true` | 4 | ELB on untrust (shared floating PIP) + ISLB on trust. HA Ports rules on both LBs. |
+| Standalone + ARS | `enable_ars=true` | 4 | Independent FWs, per-FW BGP peers to ARS. ECMP routing. Unique ASN per FW. Models SD-WAN independent hub deployment. |
+| OBEW (dedicated model) | `enable_islb=true` `enable_untrust2=false` | 3 | Outbound + east-west from dedicated model reference architecture. Independent FWs, individual public IP per FW on untrust, ISLB on trust. Workload UDR next-hop is ISLB frontend. |
 
 ## Architecture
 
