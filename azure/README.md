@@ -100,7 +100,7 @@ The current architectures use a hub VNET with Azure Route Server (ARS) for dynam
 
 **ARS is incompatible with vWAN-connected VNETs.** A VNET connected to a vWAN hub cannot also contain an ARS instance — the two routing control planes conflict. Any pair using `enable_ars=true` cannot be directly connected to a vWAN hub.
 
-**Workload VNETs must also connect to the vWAN hub.** In the current topology, workload spokes peer directly to the firewall hub VNET. In a vWAN model, both the firewall VNET and the workload VNETs connect to the vWAN hub as spoke connections — the hub VNET-to-spoke VNET peering is replaced by vWAN hub routing.
+**Workload VNETs need a vWAN-connected option for testing.** The current topology peers workload spokes directly to the firewall hub VNET. To validate traffic flow through firewalls attached to a vWAN hub, at least some workload VNETs need to be connected to the vWAN hub as spoke connections rather than peered to the firewall VNET. Both attachment modes should be supportable — vWAN-connected workload VNETs to test the vWAN routing path, and optionally direct-peered workload VNETs for comparison.
 
 ### Routing Options
 
