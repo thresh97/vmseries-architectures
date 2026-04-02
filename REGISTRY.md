@@ -32,7 +32,7 @@ Catalog of all deployment patterns in this repository.
 | Deployment | Cloud | Description | Sources (best first) | Viability | Recommendation |
 |------------|-------|-------------|----------------------|-----------|----------------|
 | [aws/ha-1az](aws/ha-1az/) | AWS | Active/Passive HA pair, single AZ — secondary IP migration failover | deployment-guide · orig | untested | niche |
-| [aws/ha-xaz](aws/ha-xaz/) | AWS | Active/Passive HA pair, two AZs — EIP re-association failover; no NAT state preserved across failover | deployment-guide · orig | untested | well-worn-path |
+| [aws/ha-xaz](aws/ha-xaz/) | AWS | Active/Passive HA pair, two AZs — EIP re-association failover; no NAT state preserved across failover | deployment-guide · orig | untested | niche |
 | [aws/gwlb-one-arm](aws/gwlb-one-arm/) | AWS | TGW inspection VPC, GWLB one-arm — centralized inspection, SNAT via NAT GW | [iaac-current](https://github.com/PaloAltoNetworks/terraform-aws-swfw-modules/tree/main/examples/centralized_design) | untested | well-worn-path |
 | [aws/gwlb-two-arm](aws/gwlb-two-arm/) | AWS | TGW inspection VPC, GWLB two-arm — overlay routing, SNAT via FW arm2 EIP | [iaac-current](https://github.com/PaloAltoNetworks/terraform-aws-swfw-modules/tree/main/examples/centralized_design) · orig | untested | well-worn-path |
 | [azure/](azure/) — PAN-OS A/P HA | Azure | Hub-and-spoke, native PAN-OS Active/Passive HA with dedicated HA1/HA2 links | deployment-guide · orig | untested | well-worn-path |
