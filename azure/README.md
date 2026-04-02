@@ -11,7 +11,7 @@ This is **Phase 2** of a two-phase deployment workflow. Deploy [panorama-create]
 
 | Mode | Key Flags | NICs | Notes |
 |------|-----------|------|-------|
-| Native PAN-OS A/P HA | `enable_panos_ha=true` `enable_vip=true` | 4–6 | Floating VIPs on trust/untrust/untrust2 moved via Azure API. ARS peers with single floating trust IP. HA2 always required. NIC count varies by flags: `ha1_use_mgmt=true` saves one NIC (HA1 over mgmt); `enable_untrust2=false` saves another (drops second untrust). Minimum 4 NICs (mgmt+ha2+untrust+trust); maximum 6 requires ≥6 NIC VM (e.g. `Standard_D16s_v5`). |
+| Native PAN-OS A/P HA | `enable_panos_ha=true` `enable_vip=true` | 4–6 | Floating VIPs on trust/untrust/untrust2 moved via Azure API. ARS peers with single floating trust IP — BGP session drops during IP migration and reconverges via ARS keepalive timer; untuned failover ~60s end-to-end. HA2 always required. NIC count varies by flags: `ha1_use_mgmt=true` saves one NIC (HA1 over mgmt); `enable_untrust2=false` saves another (drops second untrust). Minimum 4 NICs (mgmt+ha2+untrust+trust); maximum 6 requires ≥6 NIC VM (e.g. `Standard_D16s_v5`). |
 | Load Balancer HA | `enable_lb_ha=true` `enable_islb=true` | 4 | ELB on untrust (shared floating PIP) + ISLB on trust. ELB outbound rule handles SNAT. |
 | Standalone + ARS | `enable_ars=true` | 4 | Independent FWs, per-FW BGP peers to ARS. ECMP routing. Unique ASN per FW. Models SD-WAN independent hub deployment. |
 | OBEW (dedicated model) | `enable_islb=true` `enable_untrust2=false` | 3 | Outbound + east-west from dedicated model reference architecture. Independent FWs, individual public IP per FW on untrust, ISLB on trust. Workload UDR next-hop is ISLB frontend. |
