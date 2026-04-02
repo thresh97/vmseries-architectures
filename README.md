@@ -3,7 +3,11 @@
 > **FOR LAB AND DEMONSTRATION USE ONLY.**
 > This code is provided without warranty of any kind, express or implied. It is not validated for production use. No support is provided. Use at your own risk.
 
+**This repository is personal experience — not an authoritative source.** For official Palo Alto Networks guidance, consult the [VM-Series Deployment Guide](https://docs.paloaltonetworks.com/vm-series), [Reference Architectures](https://www.paloaltonetworks.com/resources/reference-architectures), and the official Terraform modules on [PaloAltoNetworks GitHub](https://github.com/PaloAltoNetworks) ([AWS](https://github.com/PaloAltoNetworks/terraform-aws-swfw-modules/tree/main/examples), [Azure](https://github.com/PaloAltoNetworks/terraform-azurerm-swfw-modules/tree/main/examples), [GCP](https://github.com/PaloAltoNetworks/terraform-google-swfw-modules/tree/main/examples)).
+
 A hands-on study of Palo Alto Networks VM-Series firewall deployment patterns across public cloud providers. Each cloud subdirectory contains Terraform that deploys real, working infrastructure — useful for learning PAN-OS HA mechanics, cloud routing primitives, and load balancer integration patterns.
+
+See [REGISTRY.md](REGISTRY.md) for provenance, viability, and recommendation for each deployment.
 
 ## Firewall Management: SCM vs Panorama
 
@@ -37,7 +41,7 @@ The Terraform in this repo uses Panorama as the management plane. The companion 
 | Provider | Directory | Architectures |
 |----------|-----------|---------------|
 | Azure | [`azure/`](azure/) | PAN-OS A/P, LB HA, Standalone+ARS |
-| AWS | [`aws/`](aws/) | GWLB one-arm (TGW inspection VPC), A/P HA single-AZ |
+| AWS | [`aws/`](aws/) | GWLB one-arm, GWLB two-arm (TGW inspection VPC), A/P HA single-AZ, A/P HA cross-AZ |
 | GCP | `gcp/` | Coming soon |
 | OCI | `oci/` | Coming soon |
 
