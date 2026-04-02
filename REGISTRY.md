@@ -36,7 +36,7 @@ Catalog of all deployment patterns in this repository.
 | [aws/gwlb-one-arm](aws/gwlb-one-arm/) | AWS | TGW inspection VPC, GWLB one-arm — centralized inspection, SNAT via NAT GW | [iaac-current](https://github.com/PaloAltoNetworks/terraform-aws-swfw-modules/tree/main/examples/centralized_design) | untested | well-worn-path |
 | [aws/gwlb-two-arm](aws/gwlb-two-arm/) | AWS | TGW inspection VPC, GWLB two-arm — overlay routing, SNAT via FW arm2 EIP | [iaac-current](https://github.com/PaloAltoNetworks/terraform-aws-swfw-modules/tree/main/examples/centralized_design) · orig | untested | well-worn-path |
 | [azure/](azure/) — PAN-OS A/P HA | Azure | Hub-and-spoke, native PAN-OS Active/Passive HA with dedicated HA1/HA2 links | deployment-guide · orig | untested | well-worn-path |
-| [azure/](azure/) — LB HA | Azure | Hub-and-spoke, stateless ELB+ISLB HA (HA Ports) | [iaac-current](https://github.com/PaloAltoNetworks/terraform-azurerm-swfw-modules/tree/main/examples/vmseries_transit_vnet_dedicated) | untested | well-worn-path |
+| [azure/](azure/) — LB HA | Azure | Hub-and-spoke, stateless ELB+ISLB HA (HA Ports) | [iaac-current](https://github.com/PaloAltoNetworks/terraform-azurerm-swfw-modules/tree/main/examples/vmseries_transit_vnet_dedicated) · [abandonware](https://github.com/PaloAltoNetworks/azure-terraform-vmseries-fast-ha-failover) | working | niche |
 | [azure/](azure/) — Standalone+ARS | Azure | Hub-and-spoke, standalone firewalls with Azure Route Server ECMP — well-suited as single-region dual-hub SD-WAN head-end with routed failover | orig | untested | well-worn-path |
 
 ---
