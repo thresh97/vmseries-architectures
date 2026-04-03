@@ -7,7 +7,7 @@
 
 A hands-on study of Palo Alto Networks VM-Series firewall deployment patterns across public cloud providers. Each cloud subdirectory contains Terraform that deploys real, working infrastructure — useful for learning PAN-OS HA mechanics, cloud routing primitives, and load balancer integration patterns.
 
-See [REGISTRY.md](REGISTRY.md) for provenance, viability, and recommendation for each deployment.
+See [REGISTRY.md](REGISTRY.md) for provenance, viability, and recommendation for each deployment. See [DESIGN.md](DESIGN.md) for architecture, scaling, and design principles across all four clouds.
 
 ## Firewall Management: SCM vs Panorama
 
