@@ -68,6 +68,25 @@ Autoscaling via cloud-native mechanisms (AWS Auto Scaling Groups, Azure VM Scale
 
 > Cloud-specific autoscaling implementation will be covered in per-cloud guides. Note: autoscaling is not currently practical in OCI due to the requirement for static IP addressing on non-primary (dataplane) NICs.
 
+### Session State in Horizontally Scaled Clusters
+
+Horizontally scaled firewall clusters behind cloud load balancers have historically operated with **no shared session state**. Each firewall instance maintains its own independent session table. The load balancer uses symmetric hashing to keep both directions of a flow pinned to the same instance — and as long as hashing is stable, this works well. The model is simple, operationally lightweight, and scales linearly with the cluster.
+
+The consequence is that any event that breaks hashing — a scale-in event removing an instance, an instance health check failure, or a load balancer flow rebalance — results in the replacement instance seeing mid-flow packets with no corresponding session entry. The instance drops the packet. For short-lived flows and cloud-native applications with reconnect logic, this is handled gracefully. For long-lived TCP connections or legacy applications without reconnect logic, the dropped flow is a visible disruption.
+
+**Session Resiliency** (released November 2023) addresses this for specific topologies by introducing an external Redis cache as a shared session store. When enabled, each firewall instance writes session state to Redis as flows are created. If the load balancer rehashes an existing flow to a different instance — due to a failure or rebalance — the receiving instance queries Redis, reconstructs the session context, and continues processing the flow without dropping it.
+
+This is a meaningful operational improvement for environments with long-lived flows, but the feature comes with significant constraints:
+
+* **Cloud and LB scope:** Session Resiliency is supported only on **AWS with Gateway Load Balancer** (with "Rebalance Existing Flows" enabled) and **GCP with Internal Passthrough Network Load Balancer**. It is not available on Azure, OCI, or with any other load balancer type.
+* **Traffic scope — L4 only:** Inspection of rehashed flows is **Layer 4 only**. App-ID, Advanced Threat Prevention, URL Filtering, and other L7 security profiles are not applied to flows recovered from Redis. Full L7 inspection applies only to sessions processed from the initial SYN on the instance that owns the flow.
+* **NAT exclusion:** Session Resiliency only works for **un-natted flows**. NAT modifies the session key (src/dst IP and port), so the session entry written by the originating instance cannot be matched by a receiving instance seeing the post-NAT or pre-NAT packet. Any flow that passes through SNAT or DNAT is excluded.
+* **External Redis dependency:** Each deployment requires a managed Redis cluster — **AWS ElastiCache for Redis** or **GCP Memorystore for Redis** (Standard tier, same region and zone, AUTH and in-transit encryption required). This introduces an additional managed service with its own HA, patching, sizing, and cost considerations.
+
+**Rehashing latency matters.** Session Resiliency can only recover a flow after the load balancer has detected the failure and rehashed the flow to a new instance. The practical recovery time is therefore bounded not just by Redis lookup latency, but by how quickly the LB itself acts. GCP's Internal Passthrough NLB rehashes existing flows quickly once an instance is marked unhealthy, making the recovery window short. AWS GWLB rehashes significantly more slowly — the disruption window before a recovering instance even sees the rehashed packets is meaningfully longer. This difference affects how much real-world benefit Session Resiliency delivers in each cloud, independent of the Redis configuration.
+
+The practical trade-off: Session Resiliency eliminates flow drops during instance failure and rebalancing events, but only for the subset of traffic that is L4 and un-natted. The external Redis dependency and LB rehashing latency add operational complexity and limit the feature's effectiveness in ways that are not always obvious from the documentation. For most horizontally scaled inspection tiers handling private-to-private E/W traffic — which is already un-natted by design — the feature is applicable and worth evaluating. For N-S traffic with SNAT or DNAT in the path, it does not apply.
+
 ## 4. Connectivity Best Practices: Cloud-Native VPN vs. NVA Overlay
 
 In modern hybrid-cloud architectures, the method of tunnel termination significantly impacts the scalability of the inspection tier. Where possible, offloading tunnel termination to cloud-native gateways eliminates the connectivity scaling constraints introduced in Section 3 and unlocks the E/W horizontal inspection tier introduced in Section 2.
