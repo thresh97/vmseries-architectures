@@ -84,8 +84,8 @@ Because connectivity relies on stateful, encrypted overlays, it is subject to th
 
 **Siting** is the deterministic "anchoring" of a flow to a specific firewall instance.
 
-* **The Single Tunnel Rule:** The instance that terminates an ingress tunnel **must** process the return traffic. There is no standard mechanism to decapsulate on Firewall A and have the return traffic encapsulated by Firewall B.
-* **Impact:** For un-natted connectivity traffic, you must maintain a **Singular Logical Path**. This architectural "pinning" is why connectivity tiers do not scale horizontally for a single logical link.
+* **Virtual Router Scope:** PAN-OS supports multiple tunnels with ECMP and symmetric return when tunnel interfaces share the same security zone — but all of this is bounded by the virtual router, which must reside on a single instance. You can distribute load across many tunnels on one firewall; you cannot distribute a single routing domain across multiple firewall instances. There is no mechanism to decapsulate on Firewall A and return traffic via Firewall B.
+* **Impact:** For un-natted connectivity traffic, you must maintain a **Singular Logical Path**. This architectural "pinning" is why connectivity tiers do not scale horizontally for a single routing domain.
 
 ### Achieving Symmetry via BGP
 
